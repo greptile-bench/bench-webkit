@@ -259,6 +259,7 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/MediaReorderQueue.cpp
         Tests/WebCore/MixedContentChecker.cpp
         Tests/WebCore/MonospaceFontTests.cpp
+        Tests/WebCore/NativeImageTests.cpp
         Tests/WebCore/NowPlayingInfoTests.cpp
         Tests/WebCore/PODIntervalTree.cpp
         Tests/WebCore/ParsedContentRange.cpp
@@ -482,7 +483,7 @@ if (ENABLE_WEBKIT)
             Helpers/cocoa/UtilitiesCocoa.mm
             InjectedBundle/mac/InjectedBundleControllerMac.mm
         )
-        if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        if (NOT WEBKIT_SDK_IS_IOS_FAMILY)
             list(APPEND TestWebKitAPIInjectedBundle_SOURCES
                 Helpers/mac/PlatformUtilitiesMac.mm
             )

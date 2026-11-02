@@ -4088,7 +4088,7 @@ void InlineCacheCompiler::emitDOMJITGetter(JSGlobalObject* globalObjectForDOMJIT
     // same to valueGPR, and not include it in the used registers since it will be changed.
     RegisterSet usedRegisters;
     for (auto& value : regs) {
-        SnippetReg reg = value.reg();
+        Reg reg = value.reg();
         if (reg.isGPR())
             usedRegisters.add(reg.gpr(), IgnoreVectors);
         else
@@ -4588,18 +4588,6 @@ void InlineCacheCompiler::emitIntrinsicGetter(IntrinsicGetterAccessCase& accessC
         break;
     }
     RELEASE_ASSERT_NOT_REACHED();
-}
-
-static inline bool NODELETE canUseMegamorphicPutFastPath(Structure* structure)
-{
-    while (true) {
-        if (structure->hasReadOnlyOrGetterSetterPropertiesExcludingProto() || structure->typeInfo().overridesGetPrototype() || structure->typeInfo().overridesPut() || structure->hasPolyProto())
-            return false;
-        JSValue prototype = structure->storedPrototype();
-        if (prototype.isNull())
-            return true;
-        structure = asObject(prototype)->structure();
-    }
 }
 
 static inline ASCIILiteral categoryName(AccessType type)

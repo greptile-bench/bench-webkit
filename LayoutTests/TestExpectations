@@ -1545,7 +1545,6 @@ http/tests/websocket/tests/hybi/imported/blink/permessage-deflate-window-bits.ht
 
 webkit.org/b/307136 http/tests/canvas/ctx.2d-canvas-style-pattern-no-document-leak.html [ Failure Pass ]
 
-imported/w3c/web-platform-tests/html/canvas/offscreen/manual/the-offscreen-canvas/offscreencanvas.resize.html [ Failure Pass ]
 imported/w3c/web-platform-tests/html/canvas/offscreen/the-offscreen-canvas/size.large.html [ Skip ]
 
 # MSE in worker is only supported on platform with the GPU process active and where MSE is enabled by default
@@ -1557,6 +1556,7 @@ media/video-supports-fullscreen.html [ Skip ]
 
 # Support for VP9 encoded videos with transparency is only available on ports that use GStreamer.
 media/video-with-alpha.html [ Skip ]
+media/video-with-alpha-premultiplied.html [ Skip ]
 
 # Support to pause with 0 rate playback seems to work only in GStreamer ports
 media/media-source/media-source-play-zero-playbackrate.html [ Skip ]
@@ -2884,7 +2884,6 @@ webkit.org/b/139107 imported/mozilla/svg/clip-02b.svg [ ImageOnlyFailure ]
 webkit.org/b/139115 imported/mozilla/svg/dynamic-conditions-03.svg [ ImageOnlyFailure ]
 webkit.org/b/139115 imported/mozilla/svg/svg-integration/dynamic-conditions-outer-svg-02.xhtml [ ImageOnlyFailure ]
 webkit.org/b/139116 imported/mozilla/svg/conditions-07.svg [ ImageOnlyFailure ]
-webkit.org/b/139117 imported/mozilla/svg/conditions-08.svg [ ImageOnlyFailure ]
 webkit.org/b/139118 imported/mozilla/svg/cssComment-in-attribute-01.svg [ ImageOnlyFailure ]
 imported/mozilla/svg/dynamic-conditions-08.svg [ Pass ImageOnlyFailure ]
 imported/mozilla/svg/dynamic-conditions-12.svg [ Pass ImageOnlyFailure ]
@@ -5163,7 +5162,6 @@ webgl/2.0.y/conformance/textures/misc/texture-corner-case-videos.html [ Failure 
 webkit.org/b/292182 webgl/1.0.x/conformance/ogles/GL/fract/fract_001_to_006.html [ Failure Pass ]  # Flaky
 webkit.org/b/292182 webgl/1.0.x/conformance/textures/image_bitmap_from_video/tex-2d-luminance-luminance-unsigned_byte.html [ Pass Timeout ]
 webkit.org/b/292182 webgl/1.0.x/conformance/textures/misc/copytexsubimage2d-large-partial-copy-corruption.html [ Failure Pass ]
-webkit.org/b/292182 webgl/1.0.x/conformance/textures/misc/tex-video-using-tex-unit-non-zero.html [ Failure Pass ]
 webkit.org/b/292182 webgl/1.0.x/conformance/textures/misc/texture-srgb-upload.html [ Failure Pass ]
 webkit.org/b/292182 webgl/1.0.x/conformance/textures/misc/texture-video-transparent.html [ Failure Pass ]
 webkit.org/b/292182 webgl/1.0.x/conformance/textures/video/tex-2d-rgba-rgba-unsigned_byte.html [ Failure Pass ]
