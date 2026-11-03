@@ -108,6 +108,11 @@ ScrollTimeline* StyleOriginatedTimelinesController::determineTreeOrder(const Vec
                     if (element == originatingElement(matchedTimeline).element().get())
                         return matchedTimeline.unsafePtr();
                 }
+                // Prefer the nearest timeline in hierarchy.
+                for (auto& matchedTimeline : matchedTimelines | std::views::reverse) {
+                    if (styleable.element.isComposedTreeDescendantOf(*originatingElement(matchedTimeline).element()))
+                        return matchedTimeline.unsafePtr();
+                }
                 // Otherwise return the last of the matching timelines per https://github.com/w3c/csswg-drafts/issues/12581.
                 return matchedTimelines.last().unsafePtr();
             }
@@ -118,8 +123,10 @@ ScrollTimeline* StyleOriginatedTimelinesController::determineTreeOrder(const Vec
             return matchedTimelines.last().unsafePtr();
         }
         // Has blocking timeline scope element
-        if (timelineScopeElement == element.get())
-            return nullptr;
+        if (timelineScopeElement == element.get()) {
+            ASSERT(!ancestorTimelines.isEmpty());
+            return &inactiveNamedTimeline(ancestorTimelines.first()->name().name);
+        }
         element = element->parentElementInComposedTree();
     }
 
@@ -437,13 +444,18 @@ void StyleOriginatedTimelinesController::attachAnimation(CSSAnimation& animation
         m_cssAnimationsPendingAttachment.append(animation);
 }
 
-static void updateTimelinesForTimelineScope(Vector<Ref<ScrollTimeline>> entries, const Styleable& styleable)
+void StyleOriginatedTimelinesController::updateTimelinesForTimelineScope(Vector<Ref<ScrollTimeline>> entries, const Styleable& styleable)
 {
     for (auto& entry : entries) {
         if (auto entryElement = originatingElementExcludingTimelineScope(entry).styleable()) {
-            Ref protectedElement { styleable.element };
-            if (entryElement->element.isComposedTreeDescendantOf(protectedElement.get()))
-                entry->setTimelineScopeElement(protectedElement.get());
+            Ref element { styleable.element };
+            if (entryElement->element.isComposedTreeDescendantOf(element)) {
+                entry->setTimelineScopeElement(element);
+                for (Ref animation : copyToVector(entry->relevantAnimations())) {
+                    if (RefPtr cssAnimation = dynamicDowncast<CSSAnimation>(animation))
+                        attachAnimation(*cssAnimation, AllowsDeferral::Yes);
+                }
+            }
         }
     }
 }
@@ -458,25 +470,15 @@ void StyleOriginatedTimelinesController::updateNamedTimelineMapForTimelineScope(
     // subtree—​for example, by siblings, cousins, or ancestors.
     switch (scope.type) {
     case Style::NameScope::Type::None: {
-        HashSet<Ref<ScrollTimeline>> namedTimelinesToUnregister;
         for (auto& entry : m_nameToTimelineMap) {
             for (auto& timeline : entry.value) {
-                if (timeline->timelineScopeDeclaredElement() == &styleable.element) {
+                if (timeline->timelineScopeDeclaredElement() == &styleable.element)
                     timeline->clearTimelineScopeDeclaredElement();
-                    // Make sure to track this time to be unregistered in a separate
-                    // step as it would modify the map we're currently iterating over.
-                    namedTimelinesToUnregister.add(timeline.get());
-                }
             }
         }
         m_timelineScopeEntries.removeAllMatching([&](const std::pair<Style::NameScope, WeakStyleable> entry) {
             return entry.second == styleable;
         });
-        // We need to unregister all timelines that are no longer within this scope.
-        for (auto& timeline : namedTimelinesToUnregister) {
-            if (auto associatedElement = originatingElement(timeline).styleable())
-                unregisterNamedTimeline(timeline->name().name, *associatedElement);
-        }
         break;
     }
     case Style::NameScope::Type::All:

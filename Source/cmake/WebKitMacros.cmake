@@ -1124,14 +1124,8 @@ function(webkit_generate_platform_feature_defines_file _out_path_var)
         list(GET CMAKE_OSX_ARCHITECTURES 0 _arch)
         list(APPEND _clang_cmd "-arch" "${_arch}")
     endif ()
-    if (CMAKE_OSX_DEPLOYMENT_TARGET)
-        if (WEBKIT_SDK_IS_SIMULATOR)
-            list(APPEND _clang_cmd "-mios-simulator-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
-        elseif (WEBKIT_SDK_IS_IOS_FAMILY)
-            list(APPEND _clang_cmd "-miphoneos-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
-        else ()
-            list(APPEND _clang_cmd "-mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
-        endif ()
+    if (WEBKIT_SDK_MIN_VERSION_FLAG)
+        list(APPEND _clang_cmd "${WEBKIT_SDK_MIN_VERSION_FLAG}")
     endif ()
     if (WEBKIT_AVAILABILITY_VFS_OVERLAY_FILE)
         list(APPEND _clang_cmd "-ivfsoverlay" "${WEBKIT_AVAILABILITY_VFS_OVERLAY_FILE}")
@@ -1186,7 +1180,7 @@ function(_WEBKIT_COMPUTE_SWIFT_SHARED_CLANG_FLAGS _outvar)
     )
     # iOS WebKit_Internal headers gate textual #imports behind this macro that
     # trip strict cross-module-import-visibility checks (bug 312083).
-    if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    if (NOT WEBKIT_SDK_IS_IOS_FAMILY)
         list(APPEND _flags -DWK_SUPPORTS_SWIFT_OBJCXX_INTEROP=1)
     endif ()
     if (APPLE)
@@ -1225,7 +1219,8 @@ function(_webkit_generate_platform_swift_args _target _resp_path)
     _webkit_platform_args_clang_prefix(_clang_cmd
         "${_depfile}" "${_resp_path}" "${WTF_FRAMEWORK_HEADERS_DIR}")
     if (CMAKE_OSX_SYSROOT)
-        list(APPEND _clang_cmd "-isysroot" "${CMAKE_OSX_SYSROOT}")
+        list(APPEND _clang_cmd "-isysroot" "${CMAKE_OSX_SYSROOT}"
+            "-iframework" "${CMAKE_OSX_SYSROOT}/System/Library/PrivateFrameworks")
     endif ()
     if (CMAKE_Swift_COMPILER_TARGET)
         list(APPEND _clang_cmd "-target" "${CMAKE_Swift_COMPILER_TARGET}")
@@ -1347,13 +1342,51 @@ endfunction()
 macro(WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER _target _module_name _interop_module_path _output_header)
     if (SWIFT_REQUIRED)
         set_target_properties(${_target} PROPERTIES Swift_MODULE_NAME ${_module_name})
+        # CMake/Ninja and swiftc make two separate incremental-build decisions.
+        #
+        # Ninja first decides whether the Swift compiler needs to run at all.
+        # Swift does not provide Ninja with dependencies for the C++ headers
+        # loaded through the Clang importer, so WebKit adds a generated stub
+        # Swift file to the target. CMake defines a custom command that makes
+        # the stub depend on the headers listed in the interop module map. When
+        # one of those headers changes, Ninja runs that command, which updates
+        # the stub's timestamp, and then runs the Swift compile command.
+        #
+        # That command receives all the Swift sources in the module, but with
+        # CMP0157 set to NEW, CMake enables swiftc's incremental mode by default.
+        # Swiftc then makes its own decision about which sources to compile. It
+        # sees that the stub changed and processes it, but the stub is only a
+        # marker: it does not identify the C++ header that changed, and the real
+        # Swift sources do not depend on any declarations from the stub.
+        #
+        # Swiftc's saved dependency information contains the module map, but not
+        # the C++ headers listed by that map. The module map itself does not
+        # change when the contents of one of those headers change, so swiftc
+        # cannot connect the header change to the Swift sources that use its
+        # declarations. It can therefore skip those sources and leave their old
+        # object files in place. Those objects may contain member offsets from
+        # the previous C++ headers and are then linked with newly compiled C++
+        # objects that use the new layout, producing an ABI-mismatched library.
+        #
+        # Whole-module mode removes swiftc's per-file incremental decision.
+        # Once the stub causes Ninja to run the Swift compiler, every Swift
+        # source is compiled against the current C++ headers.
+        # See: https://webkit.org/b/322204
+        set_target_properties(${_target} PROPERTIES Swift_COMPILATION_MODE wholemodule)
         # Ask swiftc where to find the header files which support C/C++ builds
         # Right now this macro is used only once; if it's used more often then
         # we should abstract this so it's executed only once.
+        # The target has to be named: without it swiftc answers for the platform
+        # it runs on, whose runtime library directory is macosx.
+        set(_swift_target_info_args "")
+        if (CMAKE_Swift_COMPILER_TARGET)
+            list(APPEND _swift_target_info_args -target ${CMAKE_Swift_COMPILER_TARGET})
+        endif ()
         execute_process(
-            COMMAND ${ORIGINAL_Swift_COMPILER} -print-target-info
+            COMMAND ${ORIGINAL_Swift_COMPILER} -print-target-info ${_swift_target_info_args}
             OUTPUT_VARIABLE _swift_target_info
         )
+        unset(_swift_target_info_args)
         string(JSON _swift_target_paths GET ${_swift_target_info} "paths")
         string(JSON _swift_runtime_resource_path GET ${_swift_target_paths} "runtimeResourcePath")
         target_include_directories(${_target} SYSTEM AFTER PRIVATE "${_swift_runtime_resource_path}")
@@ -1485,7 +1518,7 @@ macro(WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER _target _module_n
         endforeach ()
         target_compile_options(${_target} PRIVATE ${_swift_only_options})
 
-        if (CMAKE_SYSTEM_NAME STREQUAL "iOS" AND CMAKE_OSX_SYSROOT)
+        if (WEBKIT_SDK_IS_IOS_FAMILY AND CMAKE_OSX_SYSROOT)
             target_compile_options(${_target} PRIVATE
                 # Our just-built frameworks must come before the SDK's
                 # PrivateFrameworks so `<WebCore/X.h>` etc. resolve to cmake-built
